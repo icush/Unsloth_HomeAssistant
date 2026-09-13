@@ -25,11 +25,14 @@
       "init": {
         "title": "Model options",
         "data": {
-          "system_prompt": "System prompt",
+          "prompt": "Instructions (system prompt template)",
+          "llm_hass_api": "Control Home Assistant (LLM API)",
           "temperature": "Temperature",
           "max_tokens": "Max tokens",
-          "timeout": "Request timeout (seconds)"
-        }
+          "timeout": "Request timeout (seconds)",
+          "think": "Thinking (reasoning mode) \u2014 off is faster and avoids empty replies"
+        },
+        "description": "Select 'Assist' under Control Home Assistant to let the model see and control your devices."
       }
     }
   }

@@ -14,12 +14,18 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
+from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import callback
+from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    TemplateSelector,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -30,14 +36,15 @@ from .const import (
     CONF_API_URL,
     CONF_MAX_TOKENS,
     CONF_MODEL_NAME,
-    CONF_SYSTEM_PROMPT,
+    CONF_PROMPT,
     CONF_TEMPERATURE,
+    CONF_THINK,
     CONF_TIMEOUT,
     DEFAULT_API_URL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL_NAME,
-    DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
+    DEFAULT_THINK,
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
@@ -123,15 +130,37 @@ class UnslothOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
+            # Empty list = no device control; drop the key so it reads as "off".
+            if not user_input.get(CONF_LLM_HASS_API):
+                user_input.pop(CONF_LLM_HASS_API, None)
             return self.async_create_entry(title="", data=user_input)
 
         opts = self.config_entry.options
+        apis = llm.async_get_apis(self.hass)
+        valid_ids = [api.id for api in apis]
+        selected = [a for a in opts.get(CONF_LLM_HASS_API, []) if a in valid_ids]
         schema = vol.Schema(
             {
                 vol.Optional(
-                    CONF_SYSTEM_PROMPT,
-                    default=opts.get(CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT),
-                ): TextSelector(TextSelectorConfig(multiline=True)),
+                    CONF_PROMPT,
+                    description={
+                        "suggested_value": opts.get(
+                            CONF_PROMPT, llm.DEFAULT_INSTRUCTIONS_PROMPT
+                        )
+                    },
+                ): TemplateSelector(),
+                vol.Optional(
+                    CONF_LLM_HASS_API,
+                    description={"suggested_value": selected},
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            SelectOptionDict(label=api.name, value=api.id)
+                            for api in apis
+                        ],
+                        multiple=True,
+                    )
+                ),
                 vol.Optional(
                     CONF_TEMPERATURE,
                     default=opts.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
@@ -150,6 +179,9 @@ class UnslothOptionsFlow(OptionsFlow):
                 ): NumberSelector(
                     NumberSelectorConfig(min=5, max=600, step=5, mode=NumberSelectorMode.BOX)
                 ),
+                vol.Optional(
+                    CONF_THINK, default=opts.get(CONF_THINK, DEFAULT_THINK)
+                ): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

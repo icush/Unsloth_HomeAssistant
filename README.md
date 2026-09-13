@@ -21,7 +21,22 @@ Settings → Devices & Services → **Add Integration** → *Unsloth AI Assistan
 
 Then Settings → Voice assistants → pick **Unsloth AI** as the conversation agent.
 
-System prompt, temperature, max tokens and timeout are under the integration's **Configure** button.
+## Device control
+
+Open the integration's **Configure** button and set **Control Home Assistant** to *Assist*.
+Only entities that are **exposed** to Assist (Settings → Voice assistants → Expose) are visible
+to the model. The model must be served with tool calling enabled:
+
+```bash
+llama-server -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q4_K_M --host 0.0.0.0 --port 8000 --jinja
+```
+
+`--jinja` is required so llama.cpp parses Gemma's tool calls into OpenAI `tool_calls`
+instead of leaving them as raw `<|tool_call>` text. (The integration also recovers raw
+text tool calls as a fallback, but parsed calls are far more reliable.)
+
+Instructions (system prompt template), temperature, max tokens and timeout are in the same
+Configure dialog.
 
 ## Serving gemma-4-26B-A4B-it-GGUF
 
