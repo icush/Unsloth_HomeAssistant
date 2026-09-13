@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to your Unsloth model server",
+        "description": "Point this at the OpenAI-compatible base URL of your inference server (ending in /v1).",
+        "data": {
+          "api_url": "API base URL",
+          "model_name": "Model name",
+          "api_key": "API key (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "URL must start with http:// or https://",
+      "cannot_connect": "Could not connect to the model server",
+      "invalid_auth": "The API key was rejected"
+    },
+    "abort": {
+      "already_configured": "This server is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Model options",
+        "data": {
+          "system_prompt": "System prompt",
+          "temperature": "Temperature",
+          "max_tokens": "Max tokens",
+          "timeout": "Request timeout (seconds)"
+        }
+      }
+    }
+  }
+}
