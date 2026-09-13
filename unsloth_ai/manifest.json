@@ -1,9 +1,1 @@
-{
-  "domain": "unsloth_ai",
-  "name": "Unsloth AI Assistant",
-  "description": "Integrate Unsloth-trained models into Home Assistant via API.",
-  "documentation": "https://github.com/icush/Unsloth_HomeAssistant",
-  "version": "1.0.0",
-  "hass": ["conversation"],
-  "entry_format": 2
-}
+{"domain": "unsloth_ai", "name": "Unsloth AI Assistant", "description": "Integrate Unsloth-trained models via API.", "version": "1.0.0", "hass": ["conversation"], "entry_format": 2}
