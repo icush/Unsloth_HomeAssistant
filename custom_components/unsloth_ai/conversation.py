@@ -177,11 +177,16 @@ class UnslothConversationEntity(conversation.ConversationEntity):
         """Initialize."""
         self.entry = entry
         self._attr_unique_id = entry.entry_id
+        self._model_name: str = (
+            entry.options.get(CONF_MODEL_NAME)
+            or entry.data.get(CONF_MODEL_NAME)
+            or ""
+        )
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer="Unsloth",
-            model=entry.data[CONF_MODEL_NAME],
+            model=self._model_name,
             entry_type=dr.DeviceEntryType.SERVICE,
         )
         if entry.options.get(CONF_LLM_HASS_API):
@@ -251,7 +256,7 @@ class UnslothConversationEntity(conversation.ConversationEntity):
 
         for _ in range(MAX_TOOL_ITERATIONS):
             payload: dict[str, Any] = {
-                "model": data[CONF_MODEL_NAME],
+                "model": self._model_name,
                 "messages": messages,
                 "temperature": float(opts.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)),
                 "max_tokens": int(opts.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)),

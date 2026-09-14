@@ -3,11 +3,17 @@
     "step": {
       "user": {
         "title": "Connect to your Unsloth model server",
-        "description": "Point this at the OpenAI-compatible base URL of your inference server (ending in /v1).",
+        "description": "Enter the OpenAI-compatible base URL of your inference server (ending in /v1). The available models are read from it in the next step.",
         "data": {
           "api_url": "API base URL",
-          "model_name": "Model name",
           "api_key": "API key (optional)"
+        }
+      },
+      "model": {
+        "title": "Choose a model",
+        "description": "{count} model(s) reported by the server. You can also type a name that isn't listed.",
+        "data": {
+          "model_name": "Model"
         }
       }
     },
@@ -31,7 +37,8 @@
           "max_tokens": "Max tokens",
           "timeout": "Request timeout (seconds)",
           "think": "Thinking (reasoning mode) \u2014 off is faster and avoids empty replies",
-          "max_history": "Max history (previous turns sent to the model, 0 = unlimited)"
+          "max_history": "Max history (previous turns sent to the model, 0 = unlimited)",
+          "model_name": "Model"
         },
         "description": "Select 'Assist' under Control Home Assistant to let the model see and control your devices."
       }

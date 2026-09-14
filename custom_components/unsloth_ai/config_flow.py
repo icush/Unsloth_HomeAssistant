@@ -15,7 +15,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.const import CONF_LLM_HASS_API
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -56,7 +56,6 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_API_URL, default=DEFAULT_API_URL): str,
-        vol.Required(CONF_MODEL_NAME, default=DEFAULT_MODEL_NAME): str,
         vol.Optional(CONF_API_KEY, default=""): TextSelector(
             TextSelectorConfig(type=TextSelectorType.PASSWORD)
         ),
@@ -64,40 +63,72 @@ STEP_USER_SCHEMA = vol.Schema(
 )
 
 
-async def _validate_endpoint(hass, api_url: str, api_key: str) -> None:
-    """Hit /models on the OpenAI-compatible server to confirm it answers."""
+async def async_fetch_models(hass: HomeAssistant, api_url: str, api_key: str) -> list[str]:
+    """Return model ids from the OpenAI-compatible /models endpoint.
+
+    Raises PermissionError on 401/403 and ConnectionError on other failures.
+    """
     session = async_get_clientsession(hass)
     headers = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     url = api_url.rstrip("/") + "/models"
-    async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+    async with session.get(
+        url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
+    ) as resp:
         if resp.status in (401, 403):
             raise PermissionError
         if resp.status >= 400:
             raise ConnectionError(f"HTTP {resp.status}")
+        data = await resp.json(content_type=None)
+    models: list[str] = []
+    for item in data.get("data", []) if isinstance(data, dict) else []:
+        model_id = item.get("id") if isinstance(item, dict) else None
+        if model_id:
+            models.append(str(model_id))
+    return sorted(set(models))
+
+
+def _model_selector(models: list[str], current: str | None) -> SelectSelector:
+    """Dropdown of server models, free text allowed, current value always present."""
+    options = list(models)
+    if current and current not in options:
+        options.insert(0, current)
+    if not options:
+        options = [DEFAULT_MODEL_NAME]
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=[SelectOptionDict(label=m, value=m) for m in options],
+            custom_value=True,
+            sort=False,
+        )
+    )
 
 
 class UnslothConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle the initial setup."""
+    """Handle the initial setup: server, then model."""
 
     VERSION = 1
+
+    def __init__(self) -> None:
+        """Initialize."""
+        self._server: dict[str, Any] = {}
+        self._models: list[str] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the user step."""
+        """Step 1: server URL and key. Validates and fetches the model list."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             api_url = user_input[CONF_API_URL].strip()
+            api_key = user_input.get(CONF_API_KEY, "")
             if not api_url.startswith(("http://", "https://")):
                 errors[CONF_API_URL] = "invalid_url"
             else:
                 try:
-                    await _validate_endpoint(
-                        self.hass, api_url, user_input.get(CONF_API_KEY, "")
-                    )
+                    self._models = await async_fetch_models(self.hass, api_url, api_key)
                 except PermissionError:
                     errors["base"] = "invalid_auth"
                 except Exception:  # noqa: BLE001
@@ -105,16 +136,43 @@ class UnslothConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "cannot_connect"
 
             if not errors:
-                user_input[CONF_API_URL] = api_url
                 await self.async_set_unique_id(api_url.lower())
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"Unsloth AI ({user_input[CONF_MODEL_NAME]})",
-                    data=user_input,
-                )
+                self._server = {CONF_API_URL: api_url, CONF_API_KEY: api_key}
+                return await self.async_step_model()
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors
+        )
+
+    async def async_step_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2: pick a model from what the server reports."""
+        if user_input is not None:
+            model = user_input[CONF_MODEL_NAME].strip()
+            return self.async_create_entry(
+                title=f"Unsloth AI ({model})",
+                data=self._server,
+                options={CONF_MODEL_NAME: model},
+            )
+
+        default = self._models[0] if self._models else DEFAULT_MODEL_NAME
+        for m in self._models:
+            if "gemma" in m.lower():
+                default = m
+                break
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_MODEL_NAME, default=default): _model_selector(
+                    self._models, None
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="model",
+            data_schema=schema,
+            description_placeholders={"count": str(len(self._models))},
         )
 
     @staticmethod
@@ -125,7 +183,7 @@ class UnslothConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class UnslothOptionsFlow(OptionsFlow):
-    """Options: prompt, temperature, max tokens, timeout."""
+    """Options: model, prompt, LLM API, sampling, history."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -135,14 +193,29 @@ class UnslothOptionsFlow(OptionsFlow):
             # Empty list = no device control; drop the key so it reads as "off".
             if not user_input.get(CONF_LLM_HASS_API):
                 user_input.pop(CONF_LLM_HASS_API, None)
+            user_input[CONF_MODEL_NAME] = user_input[CONF_MODEL_NAME].strip()
             return self.async_create_entry(title="", data=user_input)
 
-        opts = self.config_entry.options
+        entry = self.config_entry
+        opts = entry.options
+        current_model = opts.get(CONF_MODEL_NAME) or entry.data.get(CONF_MODEL_NAME)
+
+        try:
+            models = await async_fetch_models(
+                self.hass, entry.data[CONF_API_URL], entry.data.get(CONF_API_KEY, "")
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Could not list models from %s", entry.data[CONF_API_URL])
+            models = []
+
         apis = llm.async_get_apis(self.hass)
         valid_ids = [api.id for api in apis]
         selected = [a for a in opts.get(CONF_LLM_HASS_API, []) if a in valid_ids]
         schema = vol.Schema(
             {
+                vol.Required(
+                    CONF_MODEL_NAME, default=current_model or DEFAULT_MODEL_NAME
+                ): _model_selector(models, current_model),
                 vol.Optional(
                     CONF_PROMPT,
                     description={
