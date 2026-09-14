@@ -30,7 +30,8 @@
           "temperature": "Temperature",
           "max_tokens": "Max tokens",
           "timeout": "Request timeout (seconds)",
-          "think": "Thinking (reasoning mode) \u2014 off is faster and avoids empty replies"
+          "think": "Thinking (reasoning mode) \u2014 off is faster and avoids empty replies",
+          "max_history": "Max history (previous turns sent to the model, 0 = unlimited)"
         },
         "description": "Select 'Assist' under Control Home Assistant to let the model see and control your devices."
       }

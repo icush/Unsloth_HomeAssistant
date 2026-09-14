@@ -27,12 +27,14 @@ from homeassistant.helpers.json import json_dumps
 from .const import (
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
     CONF_MODEL_NAME,
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_THINK,
     CONF_TIMEOUT,
+    DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     DEFAULT_THINK,
@@ -105,6 +107,24 @@ def _parse_raw_tool_calls(text: str) -> tuple[str, list[llm.ToolInput]]:
         return ""
 
     return _RAW_TOOL_CALL.sub(_repl, text).strip(), calls
+
+
+def _trim_history(messages: list[dict[str, Any]], max_turns: int) -> list[dict[str, Any]]:
+    """Keep the system prompt, the last `max_turns` previous user turns, and the current turn.
+
+    A "turn" starts at a user message and includes the assistant/tool messages
+    that follow it. max_turns <= 0 means unlimited.
+    """
+    if max_turns <= 0:
+        return messages
+    system = [m for m in messages[:1] if m["role"] == "system"]
+    body = messages[len(system):]
+    user_idx = [i for i, m in enumerate(body) if m["role"] == "user"]
+    # user_idx[-1] is the in-progress message; keep max_turns before it.
+    if len(user_idx) - 1 <= max_turns:
+        return messages
+    start = user_idx[-1 - max_turns]
+    return system + body[start:]
 
 
 def _content_to_message(content: Any) -> dict[str, Any] | None:
@@ -218,6 +238,9 @@ class UnslothConversationEntity(conversation.ConversationEntity):
         messages = [
             m for c in chat_log.content if (m := _content_to_message(c)) is not None
         ]
+        messages = _trim_history(
+            messages, int(opts.get(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))
+        )
 
         url = data[CONF_API_URL].rstrip("/") + "/chat/completions"
         headers = {"Content-Type": "application/json"}

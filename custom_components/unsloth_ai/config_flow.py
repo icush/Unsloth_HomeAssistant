@@ -34,6 +34,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
     CONF_MODEL_NAME,
     CONF_PROMPT,
@@ -41,6 +42,7 @@ from .const import (
     CONF_THINK,
     CONF_TIMEOUT,
     DEFAULT_API_URL,
+    DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL_NAME,
     DEFAULT_TEMPERATURE,
@@ -182,6 +184,12 @@ class UnslothOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_THINK, default=opts.get(CONF_THINK, DEFAULT_THINK)
                 ): bool,
+                vol.Optional(
+                    CONF_MAX_HISTORY,
+                    default=opts.get(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY),
+                ): NumberSelector(
+                    NumberSelectorConfig(min=0, max=100, step=1, mode=NumberSelectorMode.BOX)
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
