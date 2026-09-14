@@ -9,6 +9,10 @@ A Home Assistant conversation agent (Assist) that sends chat to a model served b
 2. Repository: `https://github.com/icush/Unsloth_HomeAssistant`, Type: **Integration**
 3. Install **Unsloth AI Assistant**, then restart Home Assistant.
 
+## Icons
+
+Brand images live in `custom_components/unsloth_ai/brand/` (Home Assistant 2026.3+ serves them locally; no brands-repo PR required).
+
 ## Configure
 
 Settings → Devices & Services → **Add Integration** → *Unsloth AI Assistant*.
