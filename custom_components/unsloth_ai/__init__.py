@@ -6,7 +6,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
+from .const import CONF_MODEL_NAME
+
 PLATFORMS: list[Platform] = [Platform.CONVERSATION]
+
+
+def _title_for(entry: ConfigEntry) -> str:
+    """Entry title that reflects the currently selected model."""
+    model = entry.options.get(CONF_MODEL_NAME) or entry.data.get(CONF_MODEL_NAME) or "?"
+    return f"Unsloth AI ({model})"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -22,5 +30,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the entry when options change."""
+    """Rename the entry to match the model, then reload so the change takes effect."""
+    title = _title_for(entry)
+    if entry.title != title:
+        # This re-triggers the listener; the second pass falls through to the reload.
+        hass.config_entries.async_update_entry(entry, title=title)
+        return
     await hass.config_entries.async_reload(entry.entry_id)
